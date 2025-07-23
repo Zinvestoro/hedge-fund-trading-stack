@@ -1,0 +1,130 @@
+# Trading Stack .gitignore
+
+# API Keys and Secrets
+.env
+.env.local
+.env.production
+*.key
+*.pem
+secrets/
+credentials/
+
+# Trading Data
+data/
+logs/
+*.log
+*.db
+*.sqlite
+*.h5
+*.hdf5
+backtest_results/
+market_data/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.conda/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Node.js (for website)
+website/node_modules/
+website/.next/
+website/out/
+website/build/
+website/dist/
+website/.env.local
+website/.env.production.local
+website/.env.development.local
+
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Monitoring and metrics
+prometheus_data/
+grafana_data/
+*.rrd
+
+# Compiled binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# IDE files
+*.sublime-project
+*.sublime-workspace
+
+# OS generated files
+.directory
+.fuse_hidden*
+.nfs*
+
+# Trading specific
+positions.json
+orders.json
+portfolio_state.json
+risk_metrics.json
+

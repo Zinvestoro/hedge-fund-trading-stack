@@ -1,0 +1,174 @@
+version: '3.8'
+
+services:
+  # Apache Kafka with Zookeeper
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    hostname: zookeeper
+    container_name: trading-zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
+    restart: unless-stopped
+    networks:
+      - trading-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    hostname: kafka
+    container_name: trading-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      # Performance optimizations for trading data
+      KAFKA_NUM_NETWORK_THREADS: 8
+      KAFKA_NUM_IO_THREADS: 16
+      KAFKA_SOCKET_SEND_BUFFER_BYTES: 102400
+      KAFKA_SOCKET_RECEIVE_BUFFER_BYTES: 102400
+      KAFKA_SOCKET_REQUEST_MAX_BYTES: 104857600
+      KAFKA_NUM_PARTITIONS: 8
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+      KAFKA_COMPRESSION_TYPE: 'zstd'
+      KAFKA_LOG_COMPRESSION_TYPE: 'zstd'
+      # Memory and batch optimization
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 1048576
+      KAFKA_MESSAGE_MAX_BYTES: 1000000
+      # JVM heap settings for high throughput
+      KAFKA_HEAP_OPTS: "-Xmx2G -Xms2G"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    restart: unless-stopped
+    networks:
+      - trading-network
+
+  # QuestDB for time-series data storage
+  questdb:
+    image: questdb/questdb:7.3.10
+    hostname: questdb
+    container_name: trading-questdb
+    ports:
+      - "9000:9000"  # Web console
+      - "9009:9009"  # InfluxDB line protocol
+      - "8812:8812"  # PostgreSQL wire protocol
+      - "9003:9003"  # Min health check
+    environment:
+      # Performance optimizations for trading data
+      QDB_CAIRO_COMMIT_LAG: 1000
+      QDB_CAIRO_MAX_UNCOMMITTED_ROWS: 500000
+      QDB_SHARED_WORKER_COUNT: 4
+      QDB_HTTP_WORKER_COUNT: 2
+      QDB_HTTP_BIND_TO: "0.0.0.0:9000"
+      QDB_LINE_TCP_BIND_TO: "0.0.0.0:9009"
+      QDB_PG_BIND_TO: "0.0.0.0:8812"
+      # Memory settings
+      QDB_CAIRO_SQL_COPY_BUFFER_SIZE: 2097152
+      QDB_CAIRO_O3_MAX_LAG: 600000000
+      # Enable parallel SQL execution
+      QDB_PG_SELECT_CACHE_ENABLED: true
+      QDB_PG_SELECT_CACHE_BLOCK_COUNT: 16
+      QDB_PG_INSERT_CACHE_ENABLED: true
+      QDB_PG_INSERT_CACHE_BLOCK_COUNT: 8
+    volumes:
+      - questdb-data:/var/lib/questdb
+    restart: unless-stopped
+    networks:
+      - trading-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9003/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Kafka UI for monitoring and management
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: trading-kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: trading-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      KAFKA_CLUSTERS_0_READONLY: false
+    restart: unless-stopped
+    networks:
+      - trading-network
+
+  # Redis for caching and session storage
+  redis:
+    image: redis:7.2-alpine
+    hostname: redis
+    container_name: trading-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - trading-network
+
+  # PostgreSQL for order management and accounting
+  postgres:
+    image: postgres:15-alpine
+    hostname: postgres
+    container_name: trading-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: trading
+      POSTGRES_USER: trading_user
+      POSTGRES_PASSWORD: trading_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    networks:
+      - trading-network
+
+volumes:
+  zookeeper-data:
+    driver: local
+  zookeeper-logs:
+    driver: local
+  kafka-data:
+    driver: local
+  questdb-data:
+    driver: local
+  redis-data:
+    driver: local
+  postgres-data:
+    driver: local
+
+networks:
+  trading-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
